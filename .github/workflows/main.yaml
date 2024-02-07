@@ -1,0 +1,26 @@
+name: main
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.21' ]
+    name: go ${{ matrix.go }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Checking Code for Proper Formatting...
+        run: |
+          diff=$(go fmt ./...)
+          if [ -n "$diff" ]; then
+            echo "Some files are not properly formatted:"
+            echo "$diff"
+            exit 1
+          fi
+      - name: Vetting Go Code...
+        run: go vet ./...
+      - name: Testing Go Code...
+        run: go test -race -v ./...

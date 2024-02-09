@@ -8,7 +8,7 @@ import (
 
 type hibpClient struct {
 	endpoint   string
-	httpClient http.Client
+	httpClient *http.Client
 }
 
 type hibpResponse struct {

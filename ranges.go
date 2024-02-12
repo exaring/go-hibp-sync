@@ -1,64 +1,75 @@
 package hibpsync
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"strconv"
+	mapset "github.com/deckarep/golang-set/v2"
+	"math"
 	"sync"
+	"sync/atomic"
 )
 
-const writeStateEveryN = 10
+type ProgressFunc func(lowest, current, to int64) error
 
 type rangeGenerator struct {
-	idx, to       int
-	lock          sync.Mutex
-	stateFilePath string
+	from, to       int64
+	idx            *atomic.Int64
+	inFlightSet    mapset.Set[int64]
+	onProgress     ProgressFunc
+	onProgressLock sync.Mutex
 }
 
-func newRangeGenerator(from, to int, stateFilePath string) (*rangeGenerator, error) {
-	// Check if the state file exists and read the last state from it.
-	// This is useful to resume the sync process after a crash.
-	if stateFilePath != "" {
-		bytez, err := os.ReadFile(stateFilePath)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("reading state file: %w", err)
-		}
-
-		from, err = strconv.Atoi(string(bytez))
-		if err != nil {
-			return nil, fmt.Errorf("parsing state file: %w", err)
-		}
-	}
+func newRangeGenerator(from, to int64, onProgress ProgressFunc) *rangeGenerator {
+	idx := &atomic.Int64{}
+	idx.Store(from)
 
 	return &rangeGenerator{
-		idx:           from,
-		to:            to,
-		stateFilePath: stateFilePath,
-	}, nil
+		from:        from,
+		to:          to,
+		idx:         idx,
+		inFlightSet: mapset.NewSet[int64](),
+		onProgress:  onProgress,
+	}
 }
 
-func (r *rangeGenerator) Next() (int, bool, error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+func (r *rangeGenerator) Next(fn func(r int64) error) (bool, error) {
+	current := r.idx.Add(1) - 1
 
-	if r.idx > r.to {
-		return 0, false, nil
+	if current >= r.to {
+		return false, nil
 	}
 
-	current := r.idx
-	r.idx++
+	r.inFlightSet.Add(current)
 
-	if r.stateFilePath != "" && (current%writeStateEveryN == 0 || current == r.to) {
-		if err := os.WriteFile(r.stateFilePath, []byte(fmt.Sprintf("%d", current)), 0644); err != nil {
-			return 0, false, fmt.Errorf("writing state file: %w", err)
+	if err := fn(current); err != nil {
+		return false, err
+	}
+
+	r.inFlightSet.Remove(current)
+
+	if current%10 == 0 || current == r.to-1 {
+		r.onProgressLock.Lock()
+		defer r.onProgressLock.Unlock()
+
+		// TODO: Compute remaining and provide to progress function
+
+		if err := r.onProgress(r.lowestInFlight(), current, r.to); err != nil {
+			return false, err
 		}
 	}
 
-	return current, true, nil
+	return true, nil
 }
 
-func toRangeString(i int) string {
+func (r *rangeGenerator) lowestInFlight() int64 {
+	lowest := int64(math.MaxInt64)
+
+	for _, a := range r.inFlightSet.ToSlice() {
+		lowest = min(lowest, a)
+	}
+
+	return lowest
+}
+
+func toRangeString(i int64) string {
 	return fmt.Sprintf("%05X", i)
 }

@@ -1,6 +1,7 @@
 package hibpsync
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 type hibpClient struct {
 	endpoint   string
 	httpClient *http.Client
+	maxRetries int
 }
 
 type hibpResponse struct {
@@ -27,9 +29,26 @@ func (h *hibpClient) RequestRange(rangePrefix, etag string) (*hibpResponse, erro
 		req.Header.Set("If-None-Match", etag)
 	}
 
+	var mErr error
+
+	for i := 0; i < 1+h.maxRetries; i++ {
+		resp, err := h.request(req)
+		if err == nil {
+			return resp, nil
+		}
+
+		// TODO: Log error with debug level
+
+		mErr = errors.Join(mErr, err)
+	}
+
+	return nil, fmt.Errorf("requesting range %d: %w", rangePrefix, mErr)
+}
+
+func (h *hibpClient) request(req *http.Request) (*hibpResponse, error) {
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("executing request for range %q: %w", rangePrefix, err)
+		return nil, fmt.Errorf("executing request: %w", err)
 	}
 
 	if resp.StatusCode == http.StatusNotModified {
@@ -37,13 +56,13 @@ func (h *hibpClient) RequestRange(rangePrefix, etag string) (*hibpResponse, erro
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code requesting range %q: %d", rangePrefix, resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response body for range %q: %w", rangePrefix, err)
+		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
 	return &hibpResponse{

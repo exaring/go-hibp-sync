@@ -115,5 +115,5 @@ func (f *fsStorage) subDir(key string) string {
 }
 
 func (f *fsStorage) filePath(key string) string {
-	return path.Join(f.subDir(key), key)
+	return path.Join(f.subDir(key), key[2:])
 }

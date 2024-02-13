@@ -2,12 +2,11 @@ package hibpsync
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
-	"sync"
+	syncPkg "sync"
 )
 
 const (
@@ -22,7 +21,7 @@ type storage interface {
 
 type fsStorage struct {
 	dataDir   string
-	writeLock sync.Mutex
+	writeLock syncPkg.Mutex
 }
 
 var _ storage = (*fsStorage)(nil)
@@ -58,10 +57,6 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 func (f *fsStorage) LoadETag(key string) (string, error) {
 	file, err := os.Open(f.filePath(key))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", nil
-		}
-
 		return "", fmt.Errorf("opening file %q: %w", f.filePath(key), err)
 	}
 	defer file.Close()
@@ -78,9 +73,6 @@ func (f *fsStorage) LoadETag(key string) (string, error) {
 func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 	file, err := os.Open(f.filePath(key))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("opening file %q: %w", f.filePath(key), err)
 	}
 

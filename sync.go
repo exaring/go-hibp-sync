@@ -6,17 +6,17 @@ import (
 	"github.com/alitto/pond"
 	mapset "github.com/deckarep/golang-set/v2"
 	"math"
-	"sync"
+	syncPkg "sync"
 	"sync/atomic"
 )
 
-func _sync(from, to int64, client *hibpClient, store storage, pool *pond.WorkerPool, onProgress ProgressFunc) error {
+func sync(from, to int64, client *hibpClient, store storage, pool *pond.WorkerPool, onProgress ProgressFunc) error {
 	var (
 		mErr           error
-		errLock        sync.Mutex
+		errLock        syncPkg.Mutex
 		processed      atomic.Int64
 		inFlightSet    = mapset.NewSet[int64]()
-		onProgressLock sync.Mutex
+		onProgressLock syncPkg.Mutex
 	)
 
 	processed.Store(from)
@@ -30,7 +30,11 @@ func _sync(from, to int64, client *hibpClient, store storage, pool *pond.WorkerP
 			err := func() error {
 				inFlightSet.Add(current)
 
-				etag, _ := store.LoadETag(rangePrefix)
+				// We basically ignore any error here because we can still process the range even if we can't load the etag
+				etag, err := store.LoadETag(rangePrefix)
+				if err != nil {
+					etag = ""
+				}
 
 				resp, err := client.RequestRange(rangePrefix, etag)
 				if err != nil {

@@ -8,11 +8,11 @@ import (
 	"sync/atomic"
 )
 
-type ProgressFunc func(lowest, current, to int64) error
+type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 
 type rangeGenerator struct {
 	from, to       int64
-	idx            *atomic.Int64
+	idx, processed *atomic.Int64
 	inFlightSet    mapset.Set[int64]
 	onProgress     ProgressFunc
 	onProgressLock sync.Mutex
@@ -22,10 +22,14 @@ func newRangeGenerator(from, to int64, onProgress ProgressFunc) *rangeGenerator 
 	idx := &atomic.Int64{}
 	idx.Store(from)
 
+	processed := &atomic.Int64{}
+	processed.Store(from)
+
 	return &rangeGenerator{
 		from:        from,
 		to:          to,
 		idx:         idx,
+		processed:   processed,
 		inFlightSet: mapset.NewSet[int64](),
 		onProgress:  onProgress,
 	}
@@ -44,15 +48,18 @@ func (r *rangeGenerator) Next(fn func(r int64) error) (bool, error) {
 		return false, err
 	}
 
+	processed := r.processed.Add(1)
+
 	r.inFlightSet.Remove(current)
 
-	if current%10 == 0 || current == r.to-1 {
+	lowest := r.lowestInFlight()
+	remaining := r.to - processed
+
+	if processed%10 == 0 || remaining == 0 {
 		r.onProgressLock.Lock()
 		defer r.onProgressLock.Unlock()
 
-		// TODO: Compute remaining and provide to progress function
-
-		if err := r.onProgress(r.lowestInFlight(), current, r.to); err != nil {
+		if err := r.onProgress(lowest, current, r.to, processed, remaining); err != nil {
 			return false, err
 		}
 	}
@@ -65,6 +72,10 @@ func (r *rangeGenerator) lowestInFlight() int64 {
 
 	for _, a := range r.inFlightSet.ToSlice() {
 		lowest = min(lowest, a)
+	}
+
+	if lowest == math.MaxInt64 {
+		return r.to - 1
 	}
 
 	return lowest

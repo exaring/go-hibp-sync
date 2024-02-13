@@ -16,7 +16,7 @@ func main() {
 		fmt.Printf("opening state file error: %q", err)
 	}
 
-	bar := progressbar.NewOptions(0xFFFFF,
+	bar := progressbar.NewOptions(0xFFFFF+1,
 		progressbar.OptionSetWriter(ansi.NewAnsiStdout()),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionSetDescription("[cyan]Syncing HIBP data...[reset]"),
@@ -34,8 +34,12 @@ func main() {
 			BarEnd:        "]",
 		}))
 
-	updateProgressBar := func(lowest, current, _ int64) error {
-		_ = bar.Set64(current)
+	updateProgressBar := func(_, _, _, processed, remaining int64) error {
+		_ = bar.Set64(processed)
+
+		if remaining == 0 {
+			_ = bar.Finish()
+		}
 
 		return nil
 	}

@@ -9,8 +9,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"sync"
-	"sync/atomic"
 )
 
 const (
@@ -19,7 +17,10 @@ const (
 	defaultCheckETag = true
 	defaultWorkers   = 50
 	DefaultStateFile = "./.hibp-data/state"
+	lastRange        = 0xFFFFF
 )
+
+type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 
 type syncConfig struct {
 	dataDir    string
@@ -90,99 +91,27 @@ func Sync(options ...SyncOption) error {
 		}
 
 		from = lastState
-		innerProgressFn := config.progressFn
 
-		config.progressFn = func(lowest, current, to, processed, remaining int64) error {
-			err := func() error {
-				if lowest < lastState+1000 && remaining > 0 {
-					return nil
-				}
-
-				if _, err := config.stateFile.Seek(0, io.SeekStart); err != nil {
-					return fmt.Errorf("seeking to beginning of state file: %w", err)
-				}
-
-				if _, err := config.stateFile.Write([]byte(fmt.Sprintf("%d", lowest))); err != nil {
-					return fmt.Errorf("writing state file: %w", err)
-				}
-
-				lastState = lowest
-
-				return nil
-			}()
-
-			if err != nil {
-				fmt.Printf("updating state file: %v\n", err)
-			}
-
-			return innerProgressFn(lowest, current, to, processed, remaining)
-		}
+		config.progressFn = wrapWithStateUpdate(lastState, config.stateFile, config.progressFn)
 	}
-
-	rG := newRangeGenerator(from, 0xFFFFF+1, config.progressFn)
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 10
-	retryClient.Logger = nil
+	retryClient.Logger = nil // For now, we simply want to suppress the debug output
 
-	hc := hibpClient{
+	client := &hibpClient{
 		endpoint:   config.endpoint,
 		httpClient: retryClient.StandardClient(),
-		maxRetries: 2,
+		maxRetries: 3,
 	}
 
-	storage := fsStorage{
+	storage := &fsStorage{
 		dataDir: config.dataDir,
 	}
 
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
-	//defer pool.Stop()
 
-	var (
-		outerErr error
-		errLock  sync.Mutex
-		done     atomic.Bool
-	)
-
-	for !done.Load() {
-		pool.Submit(func() {
-			keepGoing, err := rG.Next(func(r int64) error {
-				rangePrefix := toRangeString(r)
-
-				etag, _ := storage.LoadETag(rangePrefix)
-				// TODO: Log error with debug level
-
-				resp, err := hc.RequestRange(rangePrefix, etag)
-				if err != nil {
-					return fmt.Errorf("error requesting range %q: %w", rangePrefix, err)
-				}
-
-				if resp.NotModified {
-					return nil
-				}
-
-				if err := storage.Save(rangePrefix, resp.ETag, resp.Data); err != nil {
-					return fmt.Errorf("error saving range %q: %w", rangePrefix, err)
-				}
-
-				return nil
-			})
-			if err != nil {
-				errLock.Lock()
-				defer errLock.Unlock()
-
-				outerErr = errors.Join(fmt.Errorf("processing range: %w", err))
-			}
-
-			if !keepGoing {
-				done.Store(true)
-			}
-		})
-	}
-
-	pool.StopAndWait()
-
-	return outerErr
+	return _sync(from, lastRange+1, client, storage, pool, config.progressFn)
 }
 
 func readStateFile(stateFile io.ReadWriteSeeker) (int64, error) {
@@ -211,4 +140,32 @@ func readStateFile(stateFile io.ReadWriteSeeker) (int64, error) {
 	}
 
 	return lastState, nil
+}
+
+func wrapWithStateUpdate(startingState int64, stateFile io.ReadWriteSeeker, innerProgressFn ProgressFunc) ProgressFunc {
+	return func(lowest, current, to, processed, remaining int64) error {
+		err := func() error {
+			if lowest < startingState+1000 && remaining > 0 {
+				return nil
+			}
+
+			if _, err := stateFile.Seek(0, io.SeekStart); err != nil {
+				return fmt.Errorf("seeking to beginning of state file: %w", err)
+			}
+
+			if _, err := stateFile.Write([]byte(fmt.Sprintf("%d", lowest))); err != nil {
+				return fmt.Errorf("writing state file: %w", err)
+			}
+
+			startingState = lowest
+
+			return nil
+		}()
+
+		if err != nil {
+			fmt.Printf("updating state file: %v\n", err)
+		}
+
+		return innerProgressFn(lowest, current, to, processed, remaining)
+	}
 }

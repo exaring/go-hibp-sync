@@ -11,14 +11,21 @@ import (
 )
 
 const (
-	fileMode = 0666 // TODO ???
-	dirMode  = 0744 // TODO ???
+	dirMode = 0o755 // TODO ???
 )
+
+type storage interface {
+	Save(key, etag string, data []byte) error
+	LoadETag(key string) (string, error)
+	LoadData(key string) (io.ReadCloser, error)
+}
 
 type fsStorage struct {
 	dataDir   string
 	writeLock sync.Mutex
 }
+
+var _ storage = (*fsStorage)(nil)
 
 func (f *fsStorage) Save(key, etag string, data []byte) error {
 	// We need to synchronize calls to Save because we don't want to create the same parent directory for several files
@@ -54,6 +61,7 @@ func (f *fsStorage) LoadETag(key string) (string, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", nil
 		}
+
 		return "", fmt.Errorf("opening file %q: %w", f.filePath(key), err)
 	}
 	defer file.Close()

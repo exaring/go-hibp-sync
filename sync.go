@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 )
 
-func _sync(from, to int64, client *hibpClient, storage *fsStorage, pool *pond.WorkerPool, onProgress ProgressFunc) error {
+func _sync(from, to int64, client *hibpClient, store storage, pool *pond.WorkerPool, onProgress ProgressFunc) error {
 	var (
 		mErr           error
 		errLock        sync.Mutex
@@ -30,15 +30,15 @@ func _sync(from, to int64, client *hibpClient, storage *fsStorage, pool *pond.Wo
 			err := func() error {
 				inFlightSet.Add(current)
 
-				etag, _ := storage.LoadETag(rangePrefix)
+				etag, _ := store.LoadETag(rangePrefix)
 
 				resp, err := client.RequestRange(rangePrefix, etag)
 				if err != nil {
-					return fmt.Errorf("requesting range: %w", err)
+					return err
 				}
 
 				if !resp.NotModified {
-					if err := storage.Save(rangePrefix, resp.ETag, resp.Data); err != nil {
+					if err := store.Save(rangePrefix, resp.ETag, resp.Data); err != nil {
 						return fmt.Errorf("saving range: %w", err)
 					}
 				}

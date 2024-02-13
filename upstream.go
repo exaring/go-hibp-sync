@@ -42,7 +42,7 @@ func (h *hibpClient) RequestRange(rangePrefix, etag string) (*hibpResponse, erro
 		mErr = errors.Join(mErr, err)
 	}
 
-	return nil, fmt.Errorf("requesting range %d: %w", rangePrefix, mErr)
+	return nil, fmt.Errorf("requesting range %q: %w", rangePrefix, mErr)
 }
 
 func (h *hibpClient) request(req *http.Request) (*hibpResponse, error) {

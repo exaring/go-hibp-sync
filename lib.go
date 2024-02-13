@@ -21,7 +21,7 @@ const (
 
 type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 
-type syncConfig struct {
+type config struct {
 	dataDir    string
 	endpoint   string
 	minWorkers int
@@ -29,40 +29,40 @@ type syncConfig struct {
 	stateFile  io.ReadWriteSeeker
 }
 
-type SyncOption func(*syncConfig)
+type Option func(*config)
 
-func WithDataDir(dataDir string) SyncOption {
-	return func(c *syncConfig) {
+func WithDataDir(dataDir string) Option {
+	return func(c *config) {
 		c.dataDir = dataDir
 	}
 }
 
-func WithEndpoint(endpoint string) SyncOption {
-	return func(c *syncConfig) {
+func WithEndpoint(endpoint string) Option {
+	return func(c *config) {
 		c.endpoint = endpoint
 	}
 }
 
-func WithMinWorkers(workers int) SyncOption {
-	return func(c *syncConfig) {
+func WithMinWorkers(workers int) Option {
+	return func(c *config) {
 		c.minWorkers = workers
 	}
 }
 
-func WithStateFile(stateFile io.ReadWriteSeeker) SyncOption {
-	return func(c *syncConfig) {
+func WithStateFile(stateFile io.ReadWriteSeeker) Option {
+	return func(c *config) {
 		c.stateFile = stateFile
 	}
 }
 
-func WithProgressFn(progressFn ProgressFunc) SyncOption {
-	return func(c *syncConfig) {
+func WithProgressFn(progressFn ProgressFunc) Option {
+	return func(c *config) {
 		c.progressFn = progressFn
 	}
 }
 
-func Sync(options ...SyncOption) error {
-	config := &syncConfig{
+func Sync(options ...Option) error {
+	config := &config{
 		dataDir:    defaultDataDir,
 		endpoint:   defaultEndpoint,
 		minWorkers: defaultWorkers,
@@ -102,7 +102,23 @@ func Sync(options ...SyncOption) error {
 
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
 
-	return _sync(from, lastRange+1, client, storage, pool, config.progressFn)
+	return sync(from, lastRange+1, client, storage, pool, config.progressFn)
+}
+
+func Export(w io.Writer, options ...Option) error {
+	config := &config{
+		dataDir: defaultDataDir,
+	}
+
+	for _, option := range options {
+		option(config)
+	}
+
+	storage := &fsStorage{
+		dataDir: config.dataDir,
+	}
+
+	return export(0, lastRange+1, storage, w)
 }
 
 func readStateFile(stateFile io.ReadWriteSeeker) (int64, error) {

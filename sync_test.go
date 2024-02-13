@@ -128,7 +128,7 @@ func TestSync(t *testing.T) {
 	// Create the pool with some arbitrary configuration
 	pool := pond.New(3, 3)
 
-	if err := _sync(0, 12, client, storageMock, pool, progressFn); err != nil {
+	if err := sync(0, 12, client, storageMock, pool, progressFn); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

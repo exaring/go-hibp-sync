@@ -14,7 +14,6 @@ import (
 const (
 	defaultDataDir   = "./.hibp-data"
 	defaultEndpoint  = "https://api.pwnedpasswords.com/range/"
-	defaultCheckETag = true
 	defaultWorkers   = 50
 	DefaultStateFile = "./.hibp-data/state"
 	lastRange        = 0xFFFFF
@@ -25,7 +24,6 @@ type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 type syncConfig struct {
 	dataDir    string
 	endpoint   string
-	checkETag  bool
 	minWorkers int
 	progressFn ProgressFunc
 	stateFile  io.ReadWriteSeeker
@@ -42,12 +40,6 @@ func WithDataDir(dataDir string) SyncOption {
 func WithEndpoint(endpoint string) SyncOption {
 	return func(c *syncConfig) {
 		c.endpoint = endpoint
-	}
-}
-
-func WithCheckETag(checkETag bool) SyncOption {
-	return func(c *syncConfig) {
-		c.checkETag = checkETag
 	}
 }
 
@@ -73,7 +65,6 @@ func Sync(options ...SyncOption) error {
 	config := &syncConfig{
 		dataDir:    defaultDataDir,
 		endpoint:   defaultEndpoint,
-		checkETag:  defaultCheckETag,
 		minWorkers: defaultWorkers,
 		progressFn: func(_, _, _, _, _ int64) error { return nil },
 	}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -73,7 +74,7 @@ func Sync(options ...SyncOption) error {
 		endpoint:   defaultEndpoint,
 		checkETag:  defaultCheckETag,
 		minWorkers: defaultWorkers,
-		progressFn: func(_, _, _ int64) error { return nil },
+		progressFn: func(_, _, _, _, _ int64) error { return nil },
 	}
 
 	for _, option := range options {
@@ -91,9 +92,9 @@ func Sync(options ...SyncOption) error {
 		from = lastState
 		innerProgressFn := config.progressFn
 
-		config.progressFn = func(lowest, current, to int64) error {
+		config.progressFn = func(lowest, current, to, processed, remaining int64) error {
 			err := func() error {
-				if lowest < lastState+1000 {
+				if lowest < lastState+1000 && remaining > 0 {
 					return nil
 				}
 
@@ -114,7 +115,7 @@ func Sync(options ...SyncOption) error {
 				fmt.Printf("updating state file: %v\n", err)
 			}
 
-			return innerProgressFn(lowest, current, to)
+			return innerProgressFn(lowest, current, to, processed, remaining)
 		}
 	}
 
@@ -135,14 +136,15 @@ func Sync(options ...SyncOption) error {
 	}
 
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
-	defer pool.Stop()
+	//defer pool.Stop()
 
 	var (
 		outerErr error
 		errLock  sync.Mutex
+		done     atomic.Bool
 	)
 
-	for !pool.Stopped() {
+	for !done.Load() {
 		pool.Submit(func() {
 			keepGoing, err := rG.Next(func(r int64) error {
 				rangePrefix := toRangeString(r)
@@ -173,10 +175,12 @@ func Sync(options ...SyncOption) error {
 			}
 
 			if !keepGoing {
-				pool.Stop()
+				done.Store(true)
 			}
 		})
 	}
+
+	pool.StopAndWait()
 
 	return outerErr
 }

@@ -15,6 +15,7 @@ func main() {
 	if err != nil {
 		fmt.Printf("opening state file error: %q", err)
 	}
+	defer stateFile.Close()
 
 	bar := progressbar.NewOptions(0xFFFFF+1,
 		progressbar.OptionSetWriter(ansi.NewAnsiStdout()),
@@ -46,5 +47,9 @@ func main() {
 
 	if err := hibpsync.Sync(hibpsync.WithProgressFn(updateProgressBar), hibpsync.WithStateFile(stateFile)); err != nil {
 		fmt.Printf("sync error: %q", err)
+	}
+
+	if err := os.Remove(hibpsync.DefaultStateFile); err != nil {
+		fmt.Printf("removing state file error: %q", err)
 	}
 }

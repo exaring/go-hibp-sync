@@ -8,6 +8,7 @@ require (
 	github.com/h2non/gock v1.2.0
 	github.com/hashicorp/go-retryablehttp v0.7.5
 	github.com/k0kubun/go-ansi v0.0.0-20180517002512-3bf9e2903213
+	github.com/klauspost/compress v1.17.6
 	github.com/schollz/progressbar/v3 v3.14.1
 	go.uber.org/mock v0.4.0
 )

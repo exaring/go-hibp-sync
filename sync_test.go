@@ -22,63 +22,63 @@ func TestSync(t *testing.T) {
 		Get("/range/00000").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data1")
+		BodyString("suffix1")
 	gock.New(baseURL).
 		Get("/range/00001").
 		MatchHeader("If-None-Match", "etag received earlier").
 		Reply(http.StatusNotModified).
 		AddHeader("ETag", "etag received earlier").
-		BodyString("data2")
+		BodyString("suffix2")
 	gock.New(baseURL).
 		Get("/range/00002").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data3")
+		BodyString("suffix31:2\nsuffix32:3")
 	gock.New(baseURL).
 		Get("/range/00003").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data4")
+		BodyString("suffix4")
 	gock.New(baseURL).
 		Get("/range/00004").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data5")
+		BodyString("suffix5")
 	gock.New(baseURL).
 		Get("/range/00005").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data6")
+		BodyString("suffix6")
 	gock.New(baseURL).
 		Get("/range/00006").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data7")
+		BodyString("suffix7")
 	gock.New(baseURL).
 		Get("/range/00007").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data8")
+		BodyString("suffix8")
 	gock.New(baseURL).
 		Get("/range/00008").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data9")
+		BodyString("suffix9")
 	gock.New(baseURL).
 		Get("/range/00009").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data10")
+		BodyString("suffix10")
 	gock.New(baseURL).
 		Get("/range/0000A").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data11")
+		BodyString("suffix11")
 	gock.New(baseURL).
 		Get("/range/0000B").
 		Reply(200).
 		AddHeader("ETag", "etag").
-		BodyString("data12")
+		BodyString("suffix12")
 
 	client := &hibpClient{
 		endpoint:   defaultEndpoint,
@@ -89,29 +89,29 @@ func TestSync(t *testing.T) {
 	storageMock := NewMockstorage(ctrl)
 
 	storageMock.EXPECT().LoadETag("00000").Return("", nil)
-	storageMock.EXPECT().Save("00000", "etag", []byte("data1")).Return(nil)
+	storageMock.EXPECT().Save("00000", "etag", []byte("00000suffix1")).Return(nil)
 	storageMock.EXPECT().LoadETag("00001").Return("etag received earlier", nil)
 	// 00001 does not need to be written as its ETag has not changed
 	storageMock.EXPECT().LoadETag("00002").Return("", nil)
-	storageMock.EXPECT().Save("00002", "etag", []byte("data3")).Return(nil)
+	storageMock.EXPECT().Save("00002", "etag", []byte("00002suffix31:2\n00002suffix32:3")).Return(nil)
 	storageMock.EXPECT().LoadETag("00003").Return("", nil)
-	storageMock.EXPECT().Save("00003", "etag", []byte("data4")).Return(nil)
+	storageMock.EXPECT().Save("00003", "etag", []byte("00003suffix4")).Return(nil)
 	storageMock.EXPECT().LoadETag("00004").Return("", nil)
-	storageMock.EXPECT().Save("00004", "etag", []byte("data5")).Return(nil)
+	storageMock.EXPECT().Save("00004", "etag", []byte("00004suffix5")).Return(nil)
 	storageMock.EXPECT().LoadETag("00005").Return("", nil)
-	storageMock.EXPECT().Save("00005", "etag", []byte("data6")).Return(nil)
+	storageMock.EXPECT().Save("00005", "etag", []byte("00005suffix6")).Return(nil)
 	storageMock.EXPECT().LoadETag("00006").Return("", nil)
-	storageMock.EXPECT().Save("00006", "etag", []byte("data7")).Return(nil)
+	storageMock.EXPECT().Save("00006", "etag", []byte("00006suffix7")).Return(nil)
 	storageMock.EXPECT().LoadETag("00007").Return("", nil)
-	storageMock.EXPECT().Save("00007", "etag", []byte("data8")).Return(nil)
+	storageMock.EXPECT().Save("00007", "etag", []byte("00007suffix8")).Return(nil)
 	storageMock.EXPECT().LoadETag("00008").Return("", nil)
-	storageMock.EXPECT().Save("00008", "etag", []byte("data9")).Return(nil)
+	storageMock.EXPECT().Save("00008", "etag", []byte("00008suffix9")).Return(nil)
 	storageMock.EXPECT().LoadETag("00009").Return("", nil)
-	storageMock.EXPECT().Save("00009", "etag", []byte("data10")).Return(nil)
+	storageMock.EXPECT().Save("00009", "etag", []byte("00009suffix10")).Return(nil)
 	storageMock.EXPECT().LoadETag("0000A").Return("", nil)
-	storageMock.EXPECT().Save("0000A", "etag", []byte("data11")).Return(nil)
+	storageMock.EXPECT().Save("0000A", "etag", []byte("0000Asuffix11")).Return(nil)
 	storageMock.EXPECT().LoadETag("0000B").Return("", nil)
-	storageMock.EXPECT().Save("0000B", "etag", []byte("data12")).Return(nil)
+	storageMock.EXPECT().Save("0000B", "etag", []byte("0000Bsuffix12")).Return(nil)
 
 	var callCounter atomic.Int64
 

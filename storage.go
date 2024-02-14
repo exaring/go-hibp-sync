@@ -2,6 +2,7 @@ package hibpsync
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -76,8 +77,9 @@ func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("opening file %q: %w", f.filePath(key), err)
 	}
 
-	if err := skipLine(file); err != nil {
-		file.Close()
+	if err := skipLine(file); err != nil && errors.Is(err, io.EOF) {
+		defer file.Close()
+
 		return nil, fmt.Errorf("skipping etag line in file %q: %w", f.filePath(key), err)
 	}
 
@@ -89,21 +91,15 @@ func skipLine(reader io.ReadSeeker) error {
 	br := bufio.NewReader(reader)
 
 	// Read until the first newline character
-	_, err := br.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return err
+	firstBytes, err := br.ReadBytes('\n')
+	if err != nil {
+		return fmt.Errorf("reading first line: %w", err)
 	}
 
-	// Get the current offset
-	offset, err := reader.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return err
-	}
-
-	// Seek back to the beginning of the file
-	_, err = reader.Seek(offset, io.SeekStart)
-	if err != nil {
-		return err
+	// The buffered reader most likely will have read more from the reader than just the first line, so we need to
+	// seek back to the beginning of the second line.
+	if _, err = reader.Seek(int64(len(firstBytes)), io.SeekStart); err != nil {
+		return fmt.Errorf("seeking to beginning of second line: %w", err)
 	}
 
 	return nil

@@ -22,11 +22,12 @@ const (
 type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 
 type config struct {
-	dataDir    string
-	endpoint   string
-	minWorkers int
-	progressFn ProgressFunc
-	stateFile  io.ReadWriteSeeker
+	dataDir       string
+	endpoint      string
+	minWorkers    int
+	progressFn    ProgressFunc
+	stateFile     io.ReadWriteSeeker
+	noCompression bool
 }
 
 type Option func(*config)
@@ -58,6 +59,12 @@ func WithStateFile(stateFile io.ReadWriteSeeker) Option {
 func WithProgressFn(progressFn ProgressFunc) Option {
 	return func(c *config) {
 		c.progressFn = progressFn
+	}
+}
+
+func WithNoCompression() Option {
+	return func(c *config) {
+		c.noCompression = true
 	}
 }
 
@@ -97,7 +104,8 @@ func Sync(options ...Option) error {
 	}
 
 	storage := &fsStorage{
-		dataDir: config.dataDir,
+		dataDir:             config.dataDir,
+		doNotUseCompression: config.noCompression,
 	}
 
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
@@ -115,7 +123,8 @@ func Export(w io.Writer, options ...Option) error {
 	}
 
 	storage := &fsStorage{
-		dataDir: config.dataDir,
+		dataDir:             config.dataDir,
+		doNotUseCompression: config.noCompression,
 	}
 
 	return export(0, lastRange+1, storage, w)

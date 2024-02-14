@@ -2,18 +2,31 @@ package main
 
 import (
 	"fmt"
+	hibpsync "github.com/exaring/go-hibp-sync"
 	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
 	"os"
+	"path"
 	"time"
-
-	hibpsync "github.com/exaring/go-hibp-sync"
 )
 
 func main() {
+	if err := run(); err != nil {
+		_, _ = os.Stderr.WriteString("Failed to sync HIBP data: " + err.Error())
+
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	stateFilePath := path.Dir(hibpsync.DefaultStateFile)
+	if err := os.MkdirAll(stateFilePath, 0o755); err != nil {
+		return fmt.Errorf("creating state file directory %q: %w", stateFilePath, err)
+	}
+
 	stateFile, err := os.OpenFile(hibpsync.DefaultStateFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Printf("opening state file error: %q", err)
+		return fmt.Errorf("opening state file: %w", err)
 	}
 	defer stateFile.Close()
 
@@ -46,10 +59,12 @@ func main() {
 	}
 
 	if err := hibpsync.Sync(hibpsync.WithProgressFn(updateProgressBar), hibpsync.WithStateFile(stateFile)); err != nil {
-		fmt.Printf("sync error: %q", err)
+		return fmt.Errorf("syncing: %w", err)
 	}
 
 	if err := os.Remove(hibpsync.DefaultStateFile); err != nil {
-		fmt.Printf("removing state file error: %q", err)
+		return fmt.Errorf("removing state file %q: %w", hibpsync.DefaultStateFile, err)
 	}
+
+	return nil
 }

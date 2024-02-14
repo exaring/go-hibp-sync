@@ -77,32 +77,20 @@ func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("opening file %q: %w", f.filePath(key), err)
 	}
 
-	if err := skipLine(file); err != nil && errors.Is(err, io.EOF) {
+	// Create a new buffered reader for efficient reading
+	bufReader := bufio.NewReaderSize(file, 64*1024) // 64KB buffer - this should fit the whole file
+
+	// Skip the first line containing the etag
+	if _, _, err := bufReader.ReadLine(); err != nil && !errors.Is(err, io.EOF) {
 		defer file.Close()
 
 		return nil, fmt.Errorf("skipping etag line in file %q: %w", f.filePath(key), err)
 	}
 
-	return file, nil
-}
-
-func skipLine(reader io.ReadSeeker) error {
-	// Create a new buffered reader for efficient reading
-	br := bufio.NewReader(reader)
-
-	// Read until the first newline character
-	firstBytes, err := br.ReadBytes('\n')
-	if err != nil {
-		return fmt.Errorf("reading first line: %w", err)
-	}
-
-	// The buffered reader most likely will have read more from the reader than just the first line, so we need to
-	// seek back to the beginning of the second line.
-	if _, err = reader.Seek(int64(len(firstBytes)), io.SeekStart); err != nil {
-		return fmt.Errorf("seeking to beginning of second line: %w", err)
-	}
-
-	return nil
+	return &closableReader{
+		Reader: bufReader,
+		Closer: file,
+	}, nil
 }
 
 func (f *fsStorage) subDir(key string) string {
@@ -112,4 +100,9 @@ func (f *fsStorage) subDir(key string) string {
 
 func (f *fsStorage) filePath(key string) string {
 	return path.Join(f.subDir(key), key[2:])
+}
+
+type closableReader struct {
+	io.Reader
+	io.Closer
 }

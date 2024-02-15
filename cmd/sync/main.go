@@ -58,7 +58,7 @@ func run() error {
 		return nil
 	}
 
-	if err := hibpsync.Sync(hibpsync.WithProgressFn(updateProgressBar), hibpsync.WithStateFile(stateFile)); err != nil {
+	if err := hibpsync.Sync(hibpsync.SyncWithProgressFn(updateProgressBar), hibpsync.SyncWithStateFile(stateFile)); err != nil {
 		return fmt.Errorf("syncing: %w", err)
 	}
 

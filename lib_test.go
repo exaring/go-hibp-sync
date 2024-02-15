@@ -11,11 +11,11 @@ func BenchmarkQuery(b *testing.B) {
 
 	dataDir := b.TempDir()
 
-	if err := Sync(WithDataDir(dataDir), WithLastRange(lastRange)); err != nil {
+	if err := Sync(SyncWithDataDir(dataDir), SyncWithLastRange(lastRange)); err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
 
-	querier := NewRangeAPI(dataDir, true)
+	querier := NewRangeAPI(QueryWithDataDir(dataDir))
 
 	b.ResetTimer()
 

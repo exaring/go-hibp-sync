@@ -21,63 +21,11 @@ const (
 
 type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 
-type config struct {
-	dataDir       string
-	endpoint      string
-	minWorkers    int
-	progressFn    ProgressFunc
-	stateFile     io.ReadWriteSeeker
-	noCompression bool
-	lastRange     int64
-}
-
-type Option func(*config)
-
-func WithDataDir(dataDir string) Option {
-	return func(c *config) {
-		c.dataDir = dataDir
-	}
-}
-
-func WithEndpoint(endpoint string) Option {
-	return func(c *config) {
-		c.endpoint = endpoint
-	}
-}
-
-func WithMinWorkers(workers int) Option {
-	return func(c *config) {
-		c.minWorkers = workers
-	}
-}
-
-func WithStateFile(stateFile io.ReadWriteSeeker) Option {
-	return func(c *config) {
-		c.stateFile = stateFile
-	}
-}
-
-func WithProgressFn(progressFn ProgressFunc) Option {
-	return func(c *config) {
-		c.progressFn = progressFn
-	}
-}
-
-func WithNoCompression() Option {
-	return func(c *config) {
-		c.noCompression = true
-	}
-}
-
-func WithLastRange(to int64) Option {
-	return func(c *config) {
-		c.lastRange = to
-	}
-}
-
-func Sync(options ...Option) error {
-	config := &config{
-		dataDir:    defaultDataDir,
+func Sync(options ...SyncOption) error {
+	config := &syncConfig{
+		commonConfig: commonConfig{
+			dataDir: defaultDataDir,
+		},
 		endpoint:   defaultEndpoint,
 		minWorkers: defaultWorkers,
 		progressFn: func(_, _, _, _, _ int64) error { return nil },
@@ -121,9 +69,11 @@ func Sync(options ...Option) error {
 	return sync(from, config.lastRange+1, client, storage, pool, config.progressFn)
 }
 
-func Export(w io.Writer, options ...Option) error {
-	config := &config{
-		dataDir: defaultDataDir,
+func Export(w io.Writer, options ...ExportOption) error {
+	config := &exportConfig{
+		commonConfig: commonConfig{
+			dataDir: defaultDataDir,
+		},
 	}
 
 	for _, option := range options {
@@ -142,11 +92,21 @@ type RangeAPI struct {
 	storage storage
 }
 
-func NewRangeAPI(dataDir string, dataIsCompressed bool) *RangeAPI {
+func NewRangeAPI(options ...QueryOption) *RangeAPI {
+	config := &queryConfig{
+		commonConfig: commonConfig{
+			dataDir: defaultDataDir,
+		},
+	}
+
+	for _, option := range options {
+		option(config)
+	}
+
 	return &RangeAPI{
 		storage: &fsStorage{
-			dataDir:             dataDir,
-			doNotUseCompression: !dataIsCompressed,
+			dataDir:             config.dataDir,
+			doNotUseCompression: config.noCompression,
 		},
 	}
 }

@@ -36,6 +36,7 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 
 	filePath := f.filePath(key)
 
+	// Creates the file if it doesn't exist, or truncates it if it does.
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("creating file %q: %w", filePath, err)

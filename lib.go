@@ -16,7 +16,7 @@ const (
 	defaultEndpoint  = "https://api.pwnedpasswords.com/range/"
 	defaultWorkers   = 50
 	DefaultStateFile = "./.hibp-data/state"
-	lastRange        = 0xFFFFF
+	defaultLastRange = 0xFFFFF
 )
 
 type ProgressFunc func(lowest, current, to, processed, remaining int64) error
@@ -28,6 +28,7 @@ type config struct {
 	progressFn    ProgressFunc
 	stateFile     io.ReadWriteSeeker
 	noCompression bool
+	lastRange     int64
 }
 
 type Option func(*config)
@@ -68,12 +69,19 @@ func WithNoCompression() Option {
 	}
 }
 
+func WithLastRange(to int64) Option {
+	return func(c *config) {
+		c.lastRange = to
+	}
+}
+
 func Sync(options ...Option) error {
 	config := &config{
 		dataDir:    defaultDataDir,
 		endpoint:   defaultEndpoint,
 		minWorkers: defaultWorkers,
 		progressFn: func(_, _, _, _, _ int64) error { return nil },
+		lastRange:  defaultLastRange,
 	}
 
 	for _, option := range options {
@@ -110,7 +118,7 @@ func Sync(options ...Option) error {
 
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
 
-	return sync(from, lastRange+1, client, storage, pool, config.progressFn)
+	return sync(from, config.lastRange+1, client, storage, pool, config.progressFn)
 }
 
 func Export(w io.Writer, options ...Option) error {
@@ -127,7 +135,29 @@ func Export(w io.Writer, options ...Option) error {
 		doNotUseCompression: config.noCompression,
 	}
 
-	return export(0, lastRange+1, storage, w)
+	return export(0, defaultLastRange+1, storage, w)
+}
+
+type RangeAPI struct {
+	storage storage
+}
+
+func NewRangeAPI(dataDir string, dataIsCompressed bool) *RangeAPI {
+	return &RangeAPI{
+		storage: &fsStorage{
+			dataDir:             dataDir,
+			doNotUseCompression: !dataIsCompressed,
+		},
+	}
+}
+
+func (q *RangeAPI) Query(prefix string) (io.ReadCloser, error) {
+	reader, err := q.storage.LoadData(prefix)
+	if err != nil {
+		return nil, fmt.Errorf("loading data for prefix %q: %w", prefix, err)
+	}
+
+	return reader, nil
 }
 
 func readStateFile(stateFile io.ReadWriteSeeker) (int64, error) {

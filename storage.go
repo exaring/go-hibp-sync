@@ -23,13 +23,58 @@ type storage interface {
 
 type fsStorage struct {
 	dataDir             string
-	writeLock           syncPkg.Mutex
 	doNotUseCompression bool
+	createDirsLock      syncPkg.Mutex
+	lockMapLock         syncPkg.Mutex
+	fileLocks           map[string]*syncPkg.RWMutex // prefix -> lock
 }
 
 var _ storage = (*fsStorage)(nil)
 
+func newFSStorage(dataDir string, doNotUseCompression bool) *fsStorage {
+	return &fsStorage{
+		dataDir:             dataDir,
+		doNotUseCompression: doNotUseCompression,
+		fileLocks:           make(map[string]*syncPkg.RWMutex),
+	}
+}
+
+type lockType int
+
+const (
+	read lockType = iota
+	write
+)
+
+func (f *fsStorage) lockFile(key string, t lockType) func() {
+	f.lockMapLock.Lock()
+	fileLock, exists := f.fileLocks[key]
+	if !exists {
+		fileLock = &syncPkg.RWMutex{}
+
+		// We cannot easily clean up the map of locks, because we would need to ensure nobody else is using
+		// the lock at that moment.
+		// This could be checked by trying to lock it, but would require us to lock fileLock while holding the
+		// lockMapLock - effectively resulting in a global lock over all files.
+		// Therefore, we consider it okay for this map to grow.
+		// The upper limit is the number of files, which is 0xFFFFF (approx. 1 million files).
+		// Additionally, this has the advantage of requiring fewer allocations and fewer objects to be gc'ed.
+		f.fileLocks[key] = fileLock
+	}
+	f.lockMapLock.Unlock()
+
+	if t == write {
+		fileLock.Lock()
+		return fileLock.Unlock
+	}
+
+	fileLock.RLock()
+	return fileLock.RUnlock
+}
+
 func (f *fsStorage) Save(key, etag string, data []byte) error {
+	defer f.lockFile(key, write)()
+
 	if err := f.createDirs(key); err != nil {
 		return fmt.Errorf("creating data directory: %w", err)
 	}
@@ -71,13 +116,16 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 func (f *fsStorage) createDirs(key string) error {
 	// We need to synchronize calls to Save because we don't want to create the same parent directory for several files
 	// at the same time.
-	f.writeLock.Lock()
-	defer f.writeLock.Unlock()
+	// This could be made smarter to lock on a per-path basis, but that is most likely not worth the complexity.
+	f.createDirsLock.Lock()
+	defer f.createDirsLock.Unlock()
 
 	return os.MkdirAll(f.subDir(key), dirMode)
 }
 
 func (f *fsStorage) LoadETag(key string) (string, error) {
+	defer f.lockFile(key, read)()
+
 	file, err := os.Open(f.filePath(key))
 	if err != nil {
 		return "", fmt.Errorf("opening file %q: %w", f.filePath(key), err)
@@ -106,6 +154,8 @@ func (f *fsStorage) LoadETag(key string) (string, error) {
 }
 
 func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
+	unlockFile := f.lockFile(key, read)
+
 	file, err := os.Open(f.filePath(key))
 	if err != nil {
 		return nil, fmt.Errorf("opening file %q: %w", f.filePath(key), err)
@@ -141,6 +191,7 @@ func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 	return &closableReader{
 		Reader: bufReader,
 		closeFn: func() error {
+			defer unlockFile()
 			defer file.Close()
 			if dec != nil {
 				defer dec.Close()

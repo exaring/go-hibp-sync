@@ -59,10 +59,7 @@ func Sync(options ...SyncOption) error {
 		maxRetries: 3,
 	}
 
-	storage := &fsStorage{
-		dataDir:             config.dataDir,
-		doNotUseCompression: config.noCompression,
-	}
+	storage := newFSStorage(config.dataDir, config.noCompression)
 
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
 
@@ -80,10 +77,7 @@ func Export(w io.Writer, options ...ExportOption) error {
 		option(config)
 	}
 
-	storage := &fsStorage{
-		dataDir:             config.dataDir,
-		doNotUseCompression: config.noCompression,
-	}
+	storage := newFSStorage(config.dataDir, config.noCompression)
 
 	return export(0, defaultLastRange+1, storage, w)
 }
@@ -104,10 +98,7 @@ func NewRangeAPI(options ...QueryOption) *RangeAPI {
 	}
 
 	return &RangeAPI{
-		storage: &fsStorage{
-			dataDir:             config.dataDir,
-			doNotUseCompression: config.noCompression,
-		},
+		storage: newFSStorage(config.dataDir, config.noCompression),
 	}
 }
 

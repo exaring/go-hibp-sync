@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	defaultDataDir   = "./.hibp-data"
-	defaultEndpoint  = "https://api.pwnedpasswords.com/range/"
-	defaultWorkers   = 50
-	DefaultStateFile = "./.hibp-data/state"
-	defaultLastRange = 0xFFFFF
+	DefaultDataDir       = "./.hibp-data"
+	defaultEndpoint      = "https://api.pwnedpasswords.com/range/"
+	defaultWorkers       = 50
+	DefaultStateFileName = "state"
+	defaultLastRange     = 0xFFFFF
 )
 
 type ProgressFunc func(lowest, current, to, processed, remaining int64) error
@@ -25,7 +25,7 @@ type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 func Sync(options ...SyncOption) error {
 	config := &syncConfig{
 		commonConfig: commonConfig{
-			dataDir: defaultDataDir,
+			dataDir: DefaultDataDir,
 		},
 		ctx:        context.Background(),
 		endpoint:   defaultEndpoint,
@@ -73,7 +73,7 @@ func Sync(options ...SyncOption) error {
 func Export(w io.Writer, options ...ExportOption) error {
 	config := &exportConfig{
 		commonConfig: commonConfig{
-			dataDir: defaultDataDir,
+			dataDir: DefaultDataDir,
 		},
 	}
 
@@ -93,7 +93,7 @@ type RangeAPI struct {
 func NewRangeAPI(options ...QueryOption) *RangeAPI {
 	config := &queryConfig{
 		commonConfig: commonConfig{
-			dataDir: defaultDataDir,
+			dataDir: DefaultDataDir,
 		},
 	}
 

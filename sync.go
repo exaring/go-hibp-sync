@@ -3,6 +3,7 @@ package hibpsync
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/alitto/pond"
@@ -12,7 +13,7 @@ import (
 	"sync/atomic"
 )
 
-func sync(from, to int64, client *hibpClient, store storage, pool *pond.WorkerPool, onProgress ProgressFunc) error {
+func sync(ctx context.Context, from, to int64, client *hibpClient, store storage, pool *pond.WorkerPool, onProgress ProgressFunc) error {
 	var (
 		mErr           error
 		errLock        syncPkg.Mutex
@@ -25,6 +26,12 @@ func sync(from, to int64, client *hibpClient, store storage, pool *pond.WorkerPo
 
 	for i := from; i < to; i++ {
 		current := i
+
+		// Pool is configured to be non-buffering, i.e., when the context gets canceled, we will finish the jobs
+		// that are currently being processed, but we will not start new ones.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
 		pool.Submit(func() {
 			rangePrefix := toRangeString(current)

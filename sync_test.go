@@ -1,6 +1,7 @@
 package hibpsync
 
 import (
+	"context"
 	"github.com/alitto/pond"
 	"github.com/h2non/gock"
 	"io"
@@ -128,7 +129,7 @@ func TestSync(t *testing.T) {
 	// Create the pool with some arbitrary configuration
 	pool := pond.New(3, 3)
 
-	if err := sync(0, 12, client, storageMock, pool, progressFn); err != nil {
+	if err := sync(context.Background(), 0, 12, client, storageMock, pool, progressFn); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

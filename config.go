@@ -1,6 +1,9 @@
 package hibpsync
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
 type commonConfig struct {
 	dataDir       string
@@ -9,6 +12,7 @@ type commonConfig struct {
 
 type syncConfig struct {
 	commonConfig
+	ctx        context.Context
 	endpoint   string
 	minWorkers int
 	progressFn ProgressFunc
@@ -17,6 +21,12 @@ type syncConfig struct {
 }
 
 type SyncOption func(config *syncConfig)
+
+func SyncWithContext(ctx context.Context) SyncOption {
+	return func(c *syncConfig) {
+		c.ctx = ctx
+	}
+}
 
 func SyncWithDataDir(dataDir string) SyncOption {
 	return func(c *syncConfig) {

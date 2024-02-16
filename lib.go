@@ -2,6 +2,7 @@ package hibpsync
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/alitto/pond"
@@ -26,6 +27,7 @@ func Sync(options ...SyncOption) error {
 		commonConfig: commonConfig{
 			dataDir: defaultDataDir,
 		},
+		ctx:        context.Background(),
 		endpoint:   defaultEndpoint,
 		minWorkers: defaultWorkers,
 		progressFn: func(_, _, _, _, _ int64) error { return nil },
@@ -61,9 +63,11 @@ func Sync(options ...SyncOption) error {
 
 	storage := newFSStorage(config.dataDir, config.noCompression)
 
+	// It is important to create a non-buffering/blocking pool because we don't want to schedule all jobs upfront.
+	// This would cause problems, especially when cancelling the context.
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
 
-	return sync(from, config.lastRange+1, client, storage, pool, config.progressFn)
+	return sync(config.ctx, from, config.lastRange+1, client, storage, pool, config.progressFn)
 }
 
 func Export(w io.Writer, options ...ExportOption) error {

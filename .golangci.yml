@@ -1,0 +1,42 @@
+run:
+  timeout: 3m
+  skip-dirs:
+    - hack
+    - integration
+
+linters:
+  fast: true
+  disable-all: true
+  enable:
+   - bidichk # checks for dangerous unicode character sequences, see Trojan Source
+   - errcheck
+   - govet
+   - ineffassign
+   - revive
+   - staticcheck
+   - unused
+   # More specialized linters
+   - gci
+   - bodyclose
+   - exportloopref
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  gci:
+    sections:
+      - standard # Captures all standard packages if they do not match another section.
+      - default # Contains all imports that could not be matched to another section type.
+      - prefix(github.com/exaring/go-hibp-sync) # Groups all imports with the specified prefix.
+  tagliatelle:
+    case:
+      use-field-name: true
+      rules:
+        json: snake
+        yaml: kebab
+
+issues:
+  exclude:
+    - undeclared|could not import|VersionString|ConfigurationName
+    # too many false positives; see https://github.com/golangci/golangci-lint/issues/166
+    - declaration of "err" shadows declaration

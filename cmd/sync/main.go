@@ -68,6 +68,9 @@ func run(dataDir string) error {
 		return fmt.Errorf("syncing: %w", err)
 	}
 
+	// Explicitly close the file because otherwise we cannot remove it
+	stateFile.Close()
+
 	if err := os.Remove(stateFilePath); err != nil {
 		return fmt.Errorf("removing state file %q: %w", stateFilePath, err)
 	}

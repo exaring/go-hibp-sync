@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	syncPkg "sync"
 )
 
@@ -73,6 +74,8 @@ func (f *fsStorage) lockFile(key string, t lockType) func() {
 }
 
 func (f *fsStorage) Save(key, etag string, data []byte) error {
+	key = strings.ToUpper(key)
+
 	defer f.lockFile(key, write)()
 
 	if err := f.createDirs(key); err != nil {
@@ -124,6 +127,8 @@ func (f *fsStorage) createDirs(key string) error {
 }
 
 func (f *fsStorage) LoadETag(key string) (string, error) {
+	key = strings.ToUpper(key)
+
 	defer f.lockFile(key, read)()
 
 	file, err := os.Open(f.filePath(key))
@@ -154,6 +159,8 @@ func (f *fsStorage) LoadETag(key string) (string, error) {
 }
 
 func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
+	key = strings.ToUpper(key)
+
 	unlockFile := f.lockFile(key, read)
 
 	file, err := os.Open(f.filePath(key))

@@ -11,20 +11,26 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	dataDir := hibpsync.DefaultDataDir
+
+	if len(os.Args) == 2 {
+		dataDir = os.Args[1]
+	}
+
+	if err := run(dataDir); err != nil {
 		_, _ = os.Stderr.WriteString("Failed to sync HIBP data: " + err.Error())
 
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	stateFilePath := path.Dir(hibpsync.DefaultStateFile)
-	if err := os.MkdirAll(stateFilePath, 0o755); err != nil {
+func run(dataDir string) error {
+	stateFilePath := path.Join(dataDir, hibpsync.DefaultStateFileName)
+	if err := os.MkdirAll(path.Dir(stateFilePath), 0o755); err != nil {
 		return fmt.Errorf("creating state file directory %q: %w", stateFilePath, err)
 	}
 
-	stateFile, err := os.OpenFile(hibpsync.DefaultStateFile, os.O_RDWR|os.O_CREATE, 0644)
+	stateFile, err := os.OpenFile(stateFilePath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("opening state file: %w", err)
 	}
@@ -58,12 +64,12 @@ func run() error {
 		return nil
 	}
 
-	if err := hibpsync.Sync(hibpsync.SyncWithProgressFn(updateProgressBar), hibpsync.SyncWithStateFile(stateFile)); err != nil {
+	if err := hibpsync.Sync(hibpsync.SyncWithDataDir(dataDir), hibpsync.SyncWithProgressFn(updateProgressBar), hibpsync.SyncWithStateFile(stateFile)); err != nil {
 		return fmt.Errorf("syncing: %w", err)
 	}
 
-	if err := os.Remove(hibpsync.DefaultStateFile); err != nil {
-		return fmt.Errorf("removing state file %q: %w", hibpsync.DefaultStateFile, err)
+	if err := os.Remove(stateFilePath); err != nil {
+		return fmt.Errorf("removing state file %q: %w", stateFilePath, err)
 	}
 
 	return nil

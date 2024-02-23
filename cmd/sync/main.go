@@ -1,3 +1,8 @@
+// Small utility to sync the HIBP data to the default data directory or to the directory specified as the
+// first argument.
+// The data will be stored applying zstd compression.
+// The tool keeps track of progress and is able to continue from where it left off in case syncing
+// needs to be interrupted.
 package main
 
 import (
@@ -64,11 +69,14 @@ func run(dataDir string) error {
 		return nil
 	}
 
-	if err := hibpsync.Sync(hibpsync.SyncWithDataDir(dataDir), hibpsync.SyncWithProgressFn(updateProgressBar), hibpsync.SyncWithStateFile(stateFile)); err != nil {
+	if err := hibpsync.Sync(
+		hibpsync.SyncWithDataDir(dataDir),
+		hibpsync.SyncWithProgressFn(updateProgressBar),
+		hibpsync.SyncWithStateFile(stateFile)); err != nil {
 		return fmt.Errorf("syncing: %w", err)
 	}
 
-	// Explicitly close the file because otherwise we cannot remove it
+	// Explicitly close the file because otherwise we cannot remove it in the next step
 	stateFile.Close()
 
 	if err := os.Remove(stateFilePath); err != nil {

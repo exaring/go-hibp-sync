@@ -14,14 +14,26 @@ import (
 
 const (
 	DefaultDataDir       = "./.hibp-data"
+	DefaultStateFileName = "state"
 	defaultEndpoint      = "https://api.pwnedpasswords.com/range/"
 	defaultWorkers       = 50
-	DefaultStateFileName = "state"
 	defaultLastRange     = 0xFFFFF
 )
 
+// ProgressFunc represents a type of function that can be used to report progress of a sync operation.
+// The parameters are as follows:
+// - lowest: The lowest prefix that has been processed so far (due to concurrent operations, there is a window of
+// prefixes that are possibly being processed at the same time, "lowest" refers to the range with the lowest prefix).
+// - current: The current prefix that is being processed, i.e. for which the ProgressFunc gets invoked.
+// - to: The highest prefix that will be processed.
+// - processed: The number of prefixes that have been processed so far.
+// - remaining: The number of prefixes that are remaining to be processed.
+// The function should return an error if the operation should be aborted.
 type ProgressFunc func(lowest, current, to, processed, remaining int64) error
 
+// Sync copies the ranges, i.e., the HIBP data, from the upstream API to the local storage.
+// The function will start from the lowest prefix and continue until the highest prefix.
+// See the set of SyncOption functions for customizing the behavior of the sync operation.
 func Sync(options ...SyncOption) error {
 	config := &syncConfig{
 		commonConfig: commonConfig{
@@ -70,6 +82,9 @@ func Sync(options ...SyncOption) error {
 	return sync(config.ctx, from, config.lastRange+1, client, storage, pool, config.progressFn)
 }
 
+// Export writes the HIBP data to the given writer.
+// The data is written in the same format as it is provided by the HIBP API itself.
+// See the set of ExportOption functions for customizing the behavior of the export operation.
 func Export(w io.Writer, options ...ExportOption) error {
 	config := &exportConfig{
 		commonConfig: commonConfig{
@@ -86,11 +101,14 @@ func Export(w io.Writer, options ...ExportOption) error {
 	return export(0, defaultLastRange+1, storage, w)
 }
 
+// RangeAPI provides an API for querying the local HIBP data.
 type RangeAPI struct {
 	storage storage
 }
 
-func NewRangeAPI(options ...QueryOption) *RangeAPI {
+// NewRangeAPI creates a new RangeAPI instance that can be used for querying k-proximity ranges.
+// See the set of RangeAPIOption functions for customizing the behavior of the RangeAPI.
+func NewRangeAPI(options ...RangeAPIOption) *RangeAPI {
 	config := &queryConfig{
 		commonConfig: commonConfig{
 			dataDir: DefaultDataDir,
@@ -106,6 +124,10 @@ func NewRangeAPI(options ...QueryOption) *RangeAPI {
 	}
 }
 
+// Query queries the local HIBP data for the given prefix.
+// The function returns an io.ReadCloser that can be used to read the data, it should be closed as soon as possible
+// to release the read lock on the file.
+// It is the responsibility of the caller to close the returned io.ReadCloser.
 func (q *RangeAPI) Query(prefix string) (io.ReadCloser, error) {
 	reader, err := q.storage.LoadData(prefix)
 	if err != nil {

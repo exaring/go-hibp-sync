@@ -1,4 +1,4 @@
-// Small utility to export the HIBP data to stdout.
+// Package main contains a small utility to export the HIBP data to stdout.
 // Expects the data to be available in the default data directory or in the directory specified as the first argument.
 // Data is expected to be compressed.
 package main

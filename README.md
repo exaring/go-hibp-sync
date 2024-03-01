@@ -13,23 +13,23 @@ Of course, this can be disabled too.
 
 The library supports to continue from where it left off, the `sync` command mentioned below demonstrates this.
 
-The basic API is really simple; two functions are exported (and additionally, typed configuration options):
+
+## API
+
+The API is really simple; one type, holding three methods, is exported (and additionally, typed configuration options):
 
 ```go
-Sync(options ...SyncOption) error // Syncs the local copy with the upstream database
-Export(w io.Writer, options ...ExportOption) error // Writes a continuous, decompressed and "free-of-etags" stream to the given io.Writer
+New(options ...CommonOption) *HIBP
+HIBP#Sync(options ...SyncOption) error // Syncs the local copy with the upstream database
+HIBP#Export(w io.Writer, options ...ExportOption) error // Writes a continuous, decompressed and "free-of-etags" stream to the given io.Writer
+HIBP#.Query("ABCDE") (io.ReadClose, error) // Returns the k-proximity API result as the upstream API would
 ```
 
-Additionally, the library can also operate on its data using the `RangeAPI` type and its `Query` method.
-This operates on disk but, depending on the medium, should provide access times that are probably good enough for all scenarios.
+All operates operate on disk but, depending on the medium, should provide access times that are probably good enough for all scenarios.
 A memory-based `tmpfs` will speed things up when necessary.
 
-```go
-querier := NewRangeAPI(/* optional options go here */)
-kProximityResponse, err := querier.Query("ABCDE")
-// TODO: Handle error
-// TODO: Read the response (as before received from the upstream API) line-by-line and check whether it contains your hash.
-```
+
+## CLI
 
 There are two basic CLI commands, `sync` and `export` that can be used for manual tasks and serve as minimal examples on how to use the library.
 They are basic but should play well with other tooling.

@@ -1,4 +1,4 @@
-package hibpsync
+package hibp
 
 import (
 	"bytes"
@@ -20,25 +20,35 @@ const (
 	defaultLastRange     = 0xFFFFF
 )
 
-// ProgressFunc represents a type of function that can be used to report progress of a sync operation.
-// The parameters are as follows:
-// - lowest: The lowest prefix that has been processed so far (due to concurrent operations, there is a window of
-// prefixes that are possibly being processed at the same time, "lowest" refers to the range with the lowest prefix).
-// - current: The current prefix that is being processed, i.e. for which the ProgressFunc gets invoked.
-// - to: The highest prefix that will be processed.
-// - processed: The number of prefixes that have been processed so far.
-// - remaining: The number of prefixes that are remaining to be processed.
-// The function should return an error if the operation should be aborted.
-type ProgressFunc func(lowest, current, to, processed, remaining int64) error
+// HIBP bundles the functionality of the HIBP package.
+// In order to allow concurrent operations on the local, file-based dataset efficiently and safely, a shared set of
+// locks is required - this gets managed by the HIBP type.
+type HIBP struct {
+	store storage
+}
+
+func New(options ...CommonOption) *HIBP {
+	config := commonConfig{
+		dataDir:       DefaultDataDir,
+		noCompression: false,
+	}
+
+	for _, option := range options {
+		option(&config)
+	}
+
+	storage := newFSStorage(config.dataDir, config.noCompression)
+
+	return &HIBP{
+		store: storage,
+	}
+}
 
 // Sync copies the ranges, i.e., the HIBP data, from the upstream API to the local storage.
 // The function will start from the lowest prefix and continue until the highest prefix.
 // See the set of SyncOption functions for customizing the behavior of the sync operation.
-func Sync(options ...SyncOption) error {
+func (h *HIBP) Sync(options ...SyncOption) error {
 	config := &syncConfig{
-		commonConfig: commonConfig{
-			dataDir: DefaultDataDir,
-		},
 		ctx:        context.Background(),
 		endpoint:   defaultEndpoint,
 		minWorkers: defaultWorkers,
@@ -73,63 +83,25 @@ func Sync(options ...SyncOption) error {
 		maxRetries: 3,
 	}
 
-	storage := newFSStorage(config.dataDir, config.noCompression)
-
 	// It is important to create a non-buffering/blocking pool because we don't want to schedule all jobs upfront.
 	// This would cause problems, especially when cancelling the context.
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
 
-	return sync(config.ctx, from, config.lastRange+1, client, storage, pool, config.progressFn)
+	return sync(config.ctx, from, config.lastRange+1, client, h.store, pool, config.progressFn)
 }
 
-// Export writes the HIBP data to the given writer.
-// The data is written in the same format as it is provided by the HIBP API itself.
-// See the set of ExportOption functions for customizing the behavior of the export operation.
-func Export(w io.Writer, options ...ExportOption) error {
-	config := &exportConfig{
-		commonConfig: commonConfig{
-			dataDir: DefaultDataDir,
-		},
-	}
-
-	for _, option := range options {
-		option(config)
-	}
-
-	storage := newFSStorage(config.dataDir, config.noCompression)
-
-	return export(0, defaultLastRange+1, storage, w)
+// Export writes the dataset to the given writer.
+// The data is written in the same format as it is provided by the Have-I-Been-Pwned API itself.
+func (h *HIBP) Export(w io.Writer) error {
+	return export(0, defaultLastRange+1, h.store, w)
 }
 
-// RangeAPI provides an API for querying the local HIBP data.
-type RangeAPI struct {
-	storage storage
-}
-
-// NewRangeAPI creates a new RangeAPI instance that can be used for querying k-proximity ranges.
-// See the set of RangeAPIOption functions for customizing the behavior of the RangeAPI.
-func NewRangeAPI(options ...RangeAPIOption) *RangeAPI {
-	config := &queryConfig{
-		commonConfig: commonConfig{
-			dataDir: DefaultDataDir,
-		},
-	}
-
-	for _, option := range options {
-		option(config)
-	}
-
-	return &RangeAPI{
-		storage: newFSStorage(config.dataDir, config.noCompression),
-	}
-}
-
-// Query queries the local HIBP data for the given prefix.
+// Query queries the local dataset for the given prefix.
 // The function returns an io.ReadCloser that can be used to read the data, it should be closed as soon as possible
 // to release the read lock on the file.
 // It is the responsibility of the caller to close the returned io.ReadCloser.
-func (q *RangeAPI) Query(prefix string) (io.ReadCloser, error) {
-	reader, err := q.storage.LoadData(prefix)
+func (h *HIBP) Query(prefix string) (io.ReadCloser, error) {
+	reader, err := h.store.LoadData(prefix)
 	if err != nil {
 		return nil, fmt.Errorf("loading data for prefix %q: %w", prefix, err)
 	}

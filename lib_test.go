@@ -1,4 +1,4 @@
-package hibpsync
+package hibp
 
 import (
 	"io"
@@ -11,11 +11,11 @@ func BenchmarkQuery(b *testing.B) {
 
 	dataDir := b.TempDir()
 
-	if err := Sync(SyncWithDataDir(dataDir), SyncWithLastRange(lastRange)); err != nil {
+	h := New(WithDataDir(dataDir))
+
+	if err := h.Sync(SyncWithLastRange(lastRange)); err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
-
-	querier := NewRangeAPI(QueryWithDataDir(dataDir))
 
 	b.ResetTimer()
 
@@ -23,11 +23,15 @@ func BenchmarkQuery(b *testing.B) {
 		func() {
 			rnd := rand.Intn(lastRange)
 
-			reader, err := querier.Query(toRangeString(int64(rnd)))
+			reader, err := h.Query(toRangeString(int64(rnd)))
 			if err != nil {
 				b.Fatalf("unexpected error: %v", err)
 			}
-			defer reader.Close()
+			defer func() {
+				if reader.Close() != nil {
+					b.Fatalf("unexpected error: %v", err)
+				}
+			}()
 
 			data, err := io.ReadAll(reader)
 			if err != nil {

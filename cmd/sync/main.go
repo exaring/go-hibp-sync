@@ -7,7 +7,7 @@ package main
 
 import (
 	"fmt"
-	hibpsync "github.com/exaring/go-hibp-sync"
+	hibp "github.com/exaring/go-hibp-sync"
 	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
 	"os"
@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	dataDir := hibpsync.DefaultDataDir
+	dataDir := hibp.DefaultDataDir
 
 	if len(os.Args) == 2 {
 		dataDir = os.Args[1]
@@ -30,7 +30,7 @@ func main() {
 }
 
 func run(dataDir string) error {
-	stateFilePath := path.Join(dataDir, hibpsync.DefaultStateFileName)
+	stateFilePath := path.Join(dataDir, hibp.DefaultStateFileName)
 	if err := os.MkdirAll(path.Dir(stateFilePath), 0o755); err != nil {
 		return fmt.Errorf("creating state file directory %q: %w", stateFilePath, err)
 	}
@@ -69,10 +69,11 @@ func run(dataDir string) error {
 		return nil
 	}
 
-	if err := hibpsync.Sync(
-		hibpsync.SyncWithDataDir(dataDir),
-		hibpsync.SyncWithProgressFn(updateProgressBar),
-		hibpsync.SyncWithStateFile(stateFile)); err != nil {
+	h := hibp.New(hibp.WithDataDir(dataDir))
+
+	if err := h.Sync(
+		hibp.SyncWithProgressFn(updateProgressBar),
+		hibp.SyncWithStateFile(stateFile)); err != nil {
 		return fmt.Errorf("syncing: %w", err)
 	}
 

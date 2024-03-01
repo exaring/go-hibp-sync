@@ -1,4 +1,4 @@
-package hibpsync
+package hibp
 
 import (
 	"bytes"

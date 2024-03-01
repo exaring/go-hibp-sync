@@ -113,6 +113,10 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 		return fmt.Errorf("writing data to file %q: %w", filePath, err)
 	}
 
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("syncing file %q to stable storage: %w", filePath, err)
+	}
+
 	return nil
 }
 

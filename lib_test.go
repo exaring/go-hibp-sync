@@ -12,7 +12,7 @@ func TestQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storageMock := NewMockstorage(ctrl)
 
-	storageMock.EXPECT().LoadData("00000").Return(io.NopCloser(bytes.NewReader([]byte("suffix:counter11\nsuffix:counter12"))), nil)
+	storageMock.EXPECT().LoadData("00000").Return(io.NopCloser(bytes.NewReader([]byte("suffix:counter11\r\nsuffix:counter12"))), nil)
 
 	i := HIBP{store: storageMock}
 
@@ -29,7 +29,7 @@ func TestQuery(t *testing.T) {
 
 	// We expect the lines to not be prefixed with the range as this is what the response from the official
 	// HIBP API looks like.
-	if string(lines) != "suffix:counter11\nsuffix:counter12" {
+	if string(lines) != "suffix:counter11\r\nsuffix:counter12" {
 		t.Fatalf("unexpected output: %q", string(lines))
 	}
 }

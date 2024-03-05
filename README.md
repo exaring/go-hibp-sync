@@ -21,11 +21,11 @@ The API is really simple; one type, holding three methods, is exported (and addi
 ```go
 New(options ...CommonOption) *HIBP
 HIBP#Sync(options ...SyncOption) error // Syncs the local copy with the upstream database
-HIBP#Export(w io.Writer, options ...ExportOption) error // Writes a continuous, decompressed and "free-of-etags" stream to the given io.Writer
-HIBP#.Query("ABCDE") (io.ReadClose, error) // Returns the k-proximity API result as the upstream API would
+HIBP#Export(w io.Writer, options ...ExportOption) error // Writes a continuous, decompressed and "free-of-etags" stream to the given io.Writer with the lines being prefix by the k-proximity range
+HIBP#.Query("ABCDE") (io.ReadClose, error) // Returns the k-proximity API result as the upstream API would (without the k-proximity range as prefix)
 ```
 
-All operates operate on disk but, depending on the medium, should provide access times that are probably good enough for all scenarios.
+All of them operate on disk but, depending on the medium, should provide access times that are probably good enough for all scenarios.
 A memory-based `tmpfs` will speed things up when necessary.
 
 

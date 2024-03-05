@@ -91,7 +91,9 @@ func (h *HIBP) Sync(options ...SyncOption) error {
 }
 
 // Export writes the dataset to the given writer.
-// The data is written in the same format as it is provided by the Have-I-Been-Pwned API itself.
+// The data is written as a continuous stream with no indication of the "prefix boundaries",
+// the format therefore differs from the official Have-I-Been-Pwned API and from `Query`, which is mimicking the API.
+// Lines have the schema "<prefix><suffix>:<count>".
 func (h *HIBP) Export(w io.Writer) error {
 	return export(0, defaultLastRange+1, h.store, w)
 }
@@ -100,6 +102,8 @@ func (h *HIBP) Export(w io.Writer) error {
 // The function returns an io.ReadCloser that can be used to read the data, it should be closed as soon as possible
 // to release the read lock on the file.
 // It is the responsibility of the caller to close the returned io.ReadCloser.
+// The resulting lines do NOT start with the prefix, they are following the schema "<suffix>:<count>".
+// This is equivalent to the response of the official Have-I-Been-Pwned API.
 func (h *HIBP) Query(prefix string) (io.ReadCloser, error) {
 	reader, err := h.store.LoadData(prefix)
 	if err != nil {

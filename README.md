@@ -28,6 +28,15 @@ HIBP#.Query("ABCDE") (io.ReadClose, error) // Returns the k-proximity API result
 All of them operate on disk but, depending on the medium, should provide access times that are probably good enough for all scenarios.
 A memory-based `tmpfs` will speed things up when necessary.
 
+**Attention:**
+The [official API](https://haveibeenpwned.com/API/v3#PwnedPasswords) states the following regarding the format: 
+
+> Each password is stored as both a SHA-1 and an NTLM hash of a UTF-8 encoded password. 
+> The downloadable source data delimits the hash and the password count with a colon (:) and each line with a CRLF.
+
+The crucial part being that lines are ended with `\r\n`.
+In order to be compatible with the upstream API this library sticks to this...
+
 
 ## CLI
 

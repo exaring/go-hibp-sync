@@ -1,8 +1,6 @@
 package hibp
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -51,12 +49,7 @@ func sync(ctx context.Context, from, to int64, client *hibpClient, store storage
 				}
 
 				if !resp.NotModified {
-					prefixedLines, err := prefixLines(resp.Data, rangePrefix)
-					if err != nil {
-						return fmt.Errorf("prefixing lines: %w", err)
-					}
-
-					if err := store.Save(rangePrefix, resp.ETag, prefixedLines); err != nil {
+					if err := store.Save(rangePrefix, resp.ETag, resp.Data); err != nil {
 						return fmt.Errorf("saving range: %w", err)
 					}
 				}
@@ -96,35 +89,6 @@ func sync(ctx context.Context, from, to int64, client *hibpClient, store storage
 
 func toRangeString(i int64) string {
 	return fmt.Sprintf("%05X", i)
-}
-
-func prefixLines(in []byte, prefix string) ([]byte, error) {
-	firstLine := true
-
-	// Actually, we know that the size will be: len(in) + rows * len(prefix)
-	// But we do not know the number of rows - so starting from len(in) seems to be a good choice.
-	out := bytes.NewBuffer(make([]byte, 0, len(in)))
-
-	scanner := bufio.NewScanner(bytes.NewReader(in))
-	for scanner.Scan() {
-		if !firstLine {
-			if _, err := out.Write(lineSeparator); err != nil {
-				return nil, fmt.Errorf("adding line separator: %w", err)
-			}
-		}
-
-		firstLine = false
-
-		if _, err := out.Write([]byte(prefix)); err != nil {
-			return nil, fmt.Errorf("adding prefix: %w", err)
-		}
-
-		if _, err := out.Write(scanner.Bytes()); err != nil {
-			return nil, fmt.Errorf("adding suffix and counter: %w", err)
-		}
-	}
-
-	return out.Bytes(), nil
 }
 
 func lowestInFlight(inFlight mapset.Set[int64], to int64) int64 {

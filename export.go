@@ -7,7 +7,9 @@ import (
 	"io"
 )
 
-var lineSeparator = []byte("\n")
+// The upstream Have-I-Been-Pwned API uses CRLF as line separator - so we are stuck with it,
+// although it does not feel right.
+var lineSeparator = []byte("\r\n")
 
 func export(from, to int64, store storage, w io.Writer) error {
 	for i := from; i < to; i++ {

@@ -32,11 +32,11 @@ func WithDataDir(dataDir string) CommonOption {
 	}
 }
 
-// WithNoCompression disables compression when writing/reading the file-based database.
+// WithoutCompression disables compression when writing/reading the file-based database.
 // When the local dataset exists already, this can only be used if the dataset has been created with the same setting.
 // This seriously increases the amount of storage required.
 // Default: false
-func WithNoCompression() CommonOption {
+func WithoutCompression() CommonOption {
 	return func(c *commonConfig) {
 		c.noCompression = true
 	}

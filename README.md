@@ -16,13 +16,14 @@ The library supports to continue from where it left off, the `sync` command ment
 
 ## API
 
-The API is really simple; one type, holding three methods, is exported (and additionally, typed configuration options):
+The API is really simple; one type, providing four methods, is exported (and additionally, typed configuration options):
 
 ```go
-New(options ...CommonOption) *HIBP
+New(options ...CommonOption) (*HIBP, error)
 HIBP#Sync(options ...SyncOption) error // Syncs the local copy with the upstream database
 HIBP#Export(w io.Writer, options ...ExportOption) error // Writes a continuous, decompressed and "free-of-etags" stream to the given io.Writer with the lines being prefix by the k-proximity range
-HIBP#.Query("ABCDE") (io.ReadClose, error) // Returns the k-proximity API result as the upstream API would (without the k-proximity range as prefix)
+HIBP#Query("ABCDE") (io.ReadClose, error) // Returns the k-proximity API result as the upstream API would (without the k-proximity range as prefix)
+HIBP#MostRecentSuccessfulSync() time.Time // Returns the point in time the last successful sync finished
 ```
 
 All of them operate on disk but, depending on the medium, should provide access times that are probably good enough for all scenarios.

@@ -39,7 +39,10 @@ func BenchmarkQuery(b *testing.B) {
 
 	dataDir := b.TempDir()
 
-	h := New(WithDataDir(dataDir))
+	h, err := New(WithDataDir(dataDir))
+	if err != nil {
+		b.Fatalf("initialising hibp sync: %v", err)
+	}
 
 	if err := h.Sync(SyncWithLastRange(lastRange)); err != nil {
 		b.Fatalf("unexpected error: %v", err)

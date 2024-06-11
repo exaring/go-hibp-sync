@@ -45,6 +45,7 @@ type lockType int
 const (
 	read lockType = iota
 	write
+	tmpSuffix = ".tmp"
 )
 
 func (f *fsStorage) lockFile(key string, t lockType) func() {
@@ -83,11 +84,16 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 	}
 
 	filePath := f.filePath(key)
+	filePathTmp := filePath + tmpSuffix
 
 	// Creates the file if it doesn't exist, or truncates it if it does.
-	file, err := os.Create(filePath)
+	// We use a temporary file to reduce the chance of corrupted files due to having to stop midair.
+	// We do not have to check for remnants from a previous run because if there is a left-over temporary file, we will
+	// overwrite it with the next run and rename it afterward.
+	// Therefore, left-overs will be gone after the next run.
+	file, err := os.Create(filePathTmp)
 	if err != nil {
-		return fmt.Errorf("creating file %q: %w", filePath, err)
+		return fmt.Errorf("creating file %q: %w", filePathTmp, err)
 	}
 	defer file.Close()
 
@@ -106,15 +112,20 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 	}
 
 	if _, err := w.Write([]byte(etag + "\n")); err != nil {
-		return fmt.Errorf("writing etag to file %q: %w", filePath, err)
+		return fmt.Errorf("writing etag to file %q: %w", filePathTmp, err)
 	}
 
 	if _, err := w.Write(data); err != nil {
-		return fmt.Errorf("writing data to file %q: %w", filePath, err)
+		return fmt.Errorf("writing data to file %q: %w", filePathTmp, err)
 	}
 
 	if err := file.Sync(); err != nil {
-		return fmt.Errorf("syncing file %q to stable storage: %w", filePath, err)
+		return fmt.Errorf("syncing file %q to stable storage: %w", filePathTmp, err)
+	}
+
+	// Replaces an existing file; on unix-like systems that should be an atomic operation
+	if err := os.Rename(filePathTmp, filePath); err != nil {
+		return fmt.Errorf("renaming tmp file %q into actual file %q: %w", filePathTmp, filePath, err)
 	}
 
 	return nil
@@ -165,7 +176,7 @@ func (f *fsStorage) LoadETag(key string) (string, error) {
 func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 	key = strings.ToUpper(key)
 
-	unlockFile := f.lockFile(key, read)
+	unlockFileFn := f.lockFile(key, read)
 
 	file, err := os.Open(f.filePath(key))
 	if err != nil {
@@ -202,7 +213,7 @@ func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 	return &closableReader{
 		Reader: bufReader,
 		closeFn: func() error {
-			defer unlockFile()
+			defer unlockFileFn()
 			defer file.Close()
 			if dec != nil {
 				defer dec.Close()

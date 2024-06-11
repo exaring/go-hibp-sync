@@ -15,7 +15,12 @@ func main() {
 		dataDir = os.Args[1]
 	}
 
-	h := hibp.New(hibp.WithDataDir(dataDir))
+	h, err := hibp.New(hibp.WithDataDir(dataDir))
+	if err != nil {
+		_, _ = os.Stderr.WriteString("Failed to init HIBP sync: " + err.Error())
+
+		os.Exit(1)
+	}
 
 	if err := h.Export(os.Stdout); err != nil {
 		_, _ = os.Stderr.WriteString("Failed to export HIBP data: " + err.Error())

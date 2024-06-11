@@ -69,7 +69,10 @@ func run(dataDir string) error {
 		return nil
 	}
 
-	h := hibp.New(hibp.WithDataDir(dataDir))
+	h, err := hibp.New(hibp.WithDataDir(dataDir))
+	if err != nil {
+		return fmt.Errorf("initialising HIBP sync: %w", err)
+	}
 
 	if err := h.Sync(
 		hibp.SyncWithProgressFn(updateProgressBar),

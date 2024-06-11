@@ -43,12 +43,13 @@ func WithoutCompression() CommonOption {
 }
 
 type syncConfig struct {
-	ctx        context.Context
-	endpoint   string
-	minWorkers int
-	progressFn ProgressFunc
-	stateFile  io.ReadWriteSeeker
-	lastRange  int64
+	ctx                                 context.Context
+	endpoint                            string
+	minWorkers                          int
+	progressFn                          ProgressFunc
+	stateFile                           io.ReadWriteSeeker
+	lastRange                           int64
+	trackMostRecentSuccessfulSyncInFile bool
 }
 
 // SyncOption represents a type of function that can be used to customize the behavior of the Sync function.
@@ -104,5 +105,14 @@ func SyncWithProgressFn(progressFn ProgressFunc) SyncOption {
 func SyncWithLastRange(to int64) SyncOption {
 	return func(c *syncConfig) {
 		c.lastRange = to
+	}
+}
+
+// SyncWithoutTrackingMostRecentSuccessfulSyncInFile disables tracking of this information in a file.
+// A file will be placed in the data dir to keep the information when ending the process.
+// Default: creating a file for the timestamp is enabled
+func SyncWithoutTrackingMostRecentSuccessfulSyncInFile() SyncOption {
+	return func(c *syncConfig) {
+		c.trackMostRecentSuccessfulSyncInFile = false
 	}
 }

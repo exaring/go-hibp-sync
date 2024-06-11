@@ -9,25 +9,31 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"io"
 	"os"
+	"path"
 	"strconv"
+	"sync/atomic"
+	"time"
 )
 
 const (
-	DefaultDataDir       = "./.hibp-data"
-	DefaultStateFileName = "state"
-	defaultEndpoint      = "https://api.pwnedpasswords.com/range/"
-	defaultWorkers       = 50
-	defaultLastRange     = 0xFFFFF
+	DefaultDataDir                   = "./.hibp-data"
+	DefaultStateFileName             = "state"
+	defaultEndpoint                  = "https://api.pwnedpasswords.com/range/"
+	defaultWorkers                   = 50
+	defaultLastRange                 = 0xFFFFF
+	hibpMostRecentSuccessfulSyncPath = ".most_recent_successful_sync"
 )
 
 // HIBP bundles the functionality of the HIBP package.
 // In order to allow concurrent operations on the local, file-based dataset efficiently and safely, a shared set of
 // locks is required - this gets managed by the HIBP type.
 type HIBP struct {
-	store storage
+	store                    storage
+	dataDir                  string
+	mostRecentSuccessfulSync atomic.Pointer[time.Time]
 }
 
-func New(options ...CommonOption) *HIBP {
+func New(options ...CommonOption) (*HIBP, error) {
 	config := commonConfig{
 		dataDir:       DefaultDataDir,
 		noCompression: false,
@@ -39,9 +45,32 @@ func New(options ...CommonOption) *HIBP {
 
 	storage := newFSStorage(config.dataDir, config.noCompression)
 
-	return &HIBP{
-		store: storage,
+	var mostRecentSuccessfulSync time.Time
+
+	mostRecentSuccessfulSyncPath := path.Join(config.dataDir, hibpMostRecentSuccessfulSyncPath)
+	mostRecentSuccessfullSyncBytes, err := os.ReadFile(mostRecentSuccessfulSyncPath)
+	if err != nil {
+		// It is ok if the file does not exist
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("reading timestamp of most recent successful sync at %q: %w", mostRecentSuccessfulSyncPath, err)
+		}
+	} else {
+		seconds, err := strconv.ParseInt(string(mostRecentSuccessfullSyncBytes), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parsing timestamp %q of most recent successful sync from %q: %w", mostRecentSuccessfullSyncBytes, mostRecentSuccessfulSyncPath, err)
+		}
+
+		mostRecentSuccessfulSync = time.Unix(seconds, 0)
 	}
+
+	h := &HIBP{
+		store:   storage,
+		dataDir: config.dataDir,
+	}
+
+	h.mostRecentSuccessfulSync.Store(&mostRecentSuccessfulSync)
+
+	return h, nil
 }
 
 // Sync copies the ranges, i.e., the HIBP data, from the upstream API to the local storage.
@@ -49,11 +78,12 @@ func New(options ...CommonOption) *HIBP {
 // See the set of SyncOption functions for customizing the behavior of the sync operation.
 func (h *HIBP) Sync(options ...SyncOption) error {
 	config := &syncConfig{
-		ctx:        context.Background(),
-		endpoint:   defaultEndpoint,
-		minWorkers: defaultWorkers,
-		progressFn: func(_, _, _, _, _ int64) error { return nil },
-		lastRange:  defaultLastRange,
+		ctx:                                 context.Background(),
+		endpoint:                            defaultEndpoint,
+		minWorkers:                          defaultWorkers,
+		progressFn:                          func(_, _, _, _, _ int64) error { return nil },
+		lastRange:                           defaultLastRange,
+		trackMostRecentSuccessfulSyncInFile: true,
 	}
 
 	for _, option := range options {
@@ -87,7 +117,22 @@ func (h *HIBP) Sync(options ...SyncOption) error {
 	// This would cause problems, especially when cancelling the context.
 	pool := pond.New(config.minWorkers, 0, pond.MinWorkers(config.minWorkers))
 
-	return sync(config.ctx, from, config.lastRange+1, client, h.store, pool, config.progressFn)
+	if err := sync(config.ctx, from, config.lastRange+1, client, h.store, pool, config.progressFn); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	h.mostRecentSuccessfulSync.Store(&now)
+
+	if config.trackMostRecentSuccessfulSyncInFile {
+		mostRecentSuccessfulSyncPath := path.Join(h.dataDir, hibpMostRecentSuccessfulSyncPath)
+
+		if err := os.WriteFile(mostRecentSuccessfulSyncPath, []byte(strconv.FormatInt(now.Unix(), 10)), 0o644); err != nil {
+			return fmt.Errorf("writing timestamp of most recent successful sync to %q: %w", mostRecentSuccessfulSyncPath, err)
+		}
+	}
+
+	return nil
 }
 
 // Export writes the dataset to the given writer.
@@ -111,6 +156,11 @@ func (h *HIBP) Query(prefix string) (io.ReadCloser, error) {
 	}
 
 	return reader, nil
+}
+
+// MostRecentSuccessfulSync returns the point in the most recent successful sync finished.
+func (h *HIBP) MostRecentSuccessfulSync() time.Time {
+	return *h.mostRecentSuccessfulSync.Load()
 }
 
 func readStateFile(stateFile io.ReadWriteSeeker) (int64, error) {

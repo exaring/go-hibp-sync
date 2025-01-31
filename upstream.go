@@ -37,7 +37,8 @@ func (h *hibpClient) RequestRange(rangePrefix, etag string) (*hibpResponse, erro
 			return resp, nil
 		}
 
-		// TODO: Log error with debug level
+		// One could log this error at debug level, but as this is a library, we don't want to introduce a dependency
+		// on a logger or make any assumption on the logging framework used by the consumer of this library.
 
 		mErr = errors.Join(mErr, err)
 	}
@@ -63,6 +64,10 @@ func (h *hibpClient) request(req *http.Request) (*hibpResponse, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	if len(body) == 0 {
+		return nil, errors.New("empty response body")
 	}
 
 	return &hibpResponse{

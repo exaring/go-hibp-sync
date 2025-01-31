@@ -95,7 +95,8 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("creating file %q: %w", filePathTmp, err)
 	}
-	defer file.Close()
+	closeOnce := syncPkg.OnceValue(file.Close)
+	defer closeOnce()
 
 	var w io.Writer = file
 
@@ -121,6 +122,10 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 
 	if err := file.Sync(); err != nil {
 		return fmt.Errorf("syncing file %q to stable storage: %w", filePathTmp, err)
+	}
+
+	if err := closeOnce(); err != nil {
+		return fmt.Errorf("closing file %q: %w", filePathTmp, err)
 	}
 
 	// Replaces an existing file; on unix-like systems that should be an atomic operation

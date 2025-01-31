@@ -48,16 +48,16 @@ func New(options ...CommonOption) (*HIBP, error) {
 	var mostRecentSuccessfulSync time.Time
 
 	mostRecentSuccessfulSyncPath := path.Join(config.dataDir, hibpMostRecentSuccessfulSyncPath)
-	mostRecentSuccessfullSyncBytes, err := os.ReadFile(mostRecentSuccessfulSyncPath)
+	mostRecentSuccessfulSyncBytes, err := os.ReadFile(mostRecentSuccessfulSyncPath)
 	if err != nil {
 		// It is ok if the file does not exist
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("reading timestamp of most recent successful sync at %q: %w", mostRecentSuccessfulSyncPath, err)
 		}
 	} else {
-		seconds, err := strconv.ParseInt(string(mostRecentSuccessfullSyncBytes), 10, 64)
+		seconds, err := strconv.ParseInt(string(mostRecentSuccessfulSyncBytes), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("parsing timestamp %q of most recent successful sync from %q: %w", mostRecentSuccessfullSyncBytes, mostRecentSuccessfulSyncPath, err)
+			return nil, fmt.Errorf("parsing timestamp %q of most recent successful sync from %q: %w", mostRecentSuccessfulSyncBytes, mostRecentSuccessfulSyncPath, err)
 		}
 
 		mostRecentSuccessfulSync = time.Unix(seconds, 0)

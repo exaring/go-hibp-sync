@@ -192,14 +192,27 @@ func (f *fsStorage) LoadETag(key string) (string, error) {
 }
 
 func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
+	callerWillCleanupResources := false
+
 	key = strings.ToUpper(key)
 
 	unlockFileFn := f.lockFile(key, read)
+	defer func() {
+		if !callerWillCleanupResources {
+			unlockFileFn()
+		}
+	}()
 
 	file, err := os.Open(f.filePath(key))
 	if err != nil {
 		return nil, fmt.Errorf("opening file %q: %w", f.filePath(key), err)
 	}
+
+	defer func() {
+		if !callerWillCleanupResources {
+			_ = file.Close()
+		}
+	}()
 
 	var (
 		r   io.Reader = file
@@ -212,6 +225,12 @@ func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 			return nil, fmt.Errorf("creating zstd reader: %w", err)
 		}
 
+		defer func() {
+			if !callerWillCleanupResources {
+				dec.Close()
+			}
+		}()
+
 		r = dec
 	}
 
@@ -220,13 +239,10 @@ func (f *fsStorage) LoadData(key string) (io.ReadCloser, error) {
 
 	// Skip the first line containing the etag
 	if _, _, err := bufReader.ReadLine(); err != nil && !errors.Is(err, io.EOF) {
-		defer file.Close()
-		if dec != nil {
-			defer dec.Close()
-		}
-
 		return nil, fmt.Errorf("skipping etag line in file %q: %w", f.filePath(key), err)
 	}
+
+	callerWillCleanupResources = true
 
 	return &closableReader{
 		Reader: bufReader,

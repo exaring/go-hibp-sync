@@ -98,12 +98,15 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 	closeOnce := syncPkg.OnceValue(file.Close)
 	defer closeOnce()
 
-	var w io.Writer = file
+	var (
+		w   io.Writer = file
+		enc *zstd.Encoder
+	)
 
 	// We use the default compression level as non-scientific tests have shown that it's by far the best trade-off
 	// between compression ratio and speed.
 	if !f.doNotUseCompression {
-		enc, err := zstd.NewWriter(file)
+		enc, err = zstd.NewWriter(file)
 		if err != nil {
 			return fmt.Errorf("creating zstd writer: %w", err)
 		}
@@ -122,6 +125,16 @@ func (f *fsStorage) Save(key, etag string, data []byte) error {
 
 	if err := file.Sync(); err != nil {
 		return fmt.Errorf("syncing file %q to stable storage: %w", filePathTmp, err)
+	}
+
+	if enc != nil {
+		if err := enc.Flush(); err != nil {
+			return fmt.Errorf("flushing zstd writer: %w", err)
+		}
+
+		if err := enc.Close(); err != nil {
+			return fmt.Errorf("closing zstd writer: %w", err)
+		}
 	}
 
 	if err := closeOnce(); err != nil {
